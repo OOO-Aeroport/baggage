@@ -459,5 +459,5 @@ public enum BaggageOrderType
 public class MovementState
 {
     public int CurrentPoint { get; set; }
-    public int AttemptsWithoutMovement { get; set; } = 0; // Счетчик неудачных попыток
+    public int AttemptsWithoutMovement { get; set; } = 0; // Счетчик неудачных попыток 
 }
