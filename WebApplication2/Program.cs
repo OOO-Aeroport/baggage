@@ -144,7 +144,7 @@ async Task ProcessDischargeOrderAsync(BaggageOrder order)
     try
     {
         Console.WriteLine($"Processing DISCHARGE order {order.OrderId} for flight {order.FlightId}");
-        //await TimeOut(30);
+        await TimeOut(30);
 
         var state = new MovementState { CurrentPoint = 299 };
 
@@ -167,14 +167,13 @@ async Task ProcessDischargeOrderAsync(BaggageOrder order)
             return;
         }
 
-        //if (!await NotifyBoardAboutBaggageOUT(order.planeId, "out"))
+        //if (!await NotifyBoardAboutBaggageOUT(order.FlightId, "out"))
         //{
-        //    Console.WriteLine($"[DISCHARGE] Failed to notify board about baggage unloading for order {order.orderId}");
+        //    Console.WriteLine($"[DISCHARGE] Failed to notify board about baggage unloading for order");
         //    return;
         //}
         Console.WriteLine("Baggage out of the plane");
-        //await TimeOut(50);
-        await Task.Delay(1000);
+        await TimeOut(50);
 
 
         var routeToLuggage = await GetRoutePlaneToLuggage(state.CurrentPoint);
@@ -191,14 +190,13 @@ async Task ProcessDischargeOrderAsync(BaggageOrder order)
         }
 
         Console.WriteLine("Baggage out of the car");
-        await Task.Delay(1000);
-        //await TimeOut(50);
+        await TimeOut(50);
 
-        //if (!await ReportSuccessToUNO(order.OrderId, "discharge"))
-        //{
-        //    Console.WriteLine($"Failed to report success to UNO for order {order.OrderId}");
-        //    return;
-        //}
+        if (!await ReportSuccessToUNO(order.OrderId, "discharge"))
+        {
+            Console.WriteLine($"Failed to report success to UNO for order {order.OrderId}");
+            return;
+        }
 
         var routeToGarage = await GetRouteToGarage(state.CurrentPoint);
         if (routeToGarage == null)
@@ -233,7 +231,7 @@ async Task ProcessLoadOrderAsync(BaggageOrder order)
     try
     {
         Console.WriteLine($"Processing LOAD order {order.OrderId} for flight {order.FlightId}");
-        //await TimeOut(30);
+        await TimeOut(30);
 
         var state = new MovementState { CurrentPoint = 299 };
 
@@ -256,14 +254,13 @@ async Task ProcessLoadOrderAsync(BaggageOrder order)
             return;
         }
 
-        //if (!await NotifyBoardAboutBaggage(order.planeId)
+        //if (!await NotifyBoardAboutBaggage(order.FlightId))
         //{
-        //    Console.WriteLine($"[LOAD] Failed to notify board about baggae loading for order {order.orderId}");
+        //    Console.WriteLine($"[LOAD] Failed to notify board about baggae loading for order ");
         //    return;
         //}
         Console.WriteLine("Baggage loaded into the car");
-        //await TimeOut(50);
-        await Task.Delay(1000);
+        await TimeOut(50);
 
         var routeToPlane = await GetRouteLuggageToPlane(state.CurrentPoint, order.FlightId);
         if (routeToPlane == null)
@@ -279,14 +276,13 @@ async Task ProcessLoadOrderAsync(BaggageOrder order)
         }
 
         Console.WriteLine("Baggage loaded into the plane");
-        //await TimeOut(50);
-        await Task.Delay(1000);
+        await TimeOut(50);
 
-        //if (!await ReportSuccessToUNO(order.OrderId, "loading"))
-        //{
-        //    Console.WriteLine($"Failed to report success to UNO for order {order.OrderId}");
-        //    return;
-        //}
+        if (!await ReportSuccessToUNO(order.OrderId, "loading"))
+        {
+            Console.WriteLine($"Failed to report success to UNO for order {order.OrderId}");
+            return;
+        }
 
         var routeToGarage = await GetRouteToGarage(state.CurrentPoint);
         if (routeToGarage == null)
@@ -489,8 +485,7 @@ async Task<bool> MoveAlongRoute(List<int> route, MovementState state, int flight
             state.CurrentRoute.RemoveAt(0);
 
             // Имитация времени движения
-            //await TimeOut(40);
-            await Task.Delay(500);
+            await TimeOut(40);
 
             // Сбрасываем счетчик при успешном перемещении
             state.AttemptsWithoutMovement = 0;
