@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -35,16 +36,32 @@ _ = Task.Run(async () =>
         {
             if (baggageQueue.TryDequeue(out var order))
             {
-                if (order.Type == BaggageOrderType.Discharge)
+                _ = Task.Run(async () =>
                 {
-                    _ = Task.Run(() => ProcessDischargeOrderAsync(order));
-                }
-                else if (order.Type == BaggageOrderType.Load)
-                {
-                    _ = Task.Run(() => ProcessLoadOrderAsync(order));
-                }
+                    try
+                    {
+                        Console.WriteLine($"Started processing order {order.OrderId} (Type: {order.Type})");
+
+                        if (order.Type == BaggageOrderType.Discharge)
+                        {
+                            await ProcessDischargeOrderAsync(order);
+                        }
+                        else if (order.Type == BaggageOrderType.Load)
+                        {
+                            await ProcessLoadOrderAsync(order);
+                        }
+
+                        Console.WriteLine($"Finished processing order {order.OrderId} (Type: {order.Type})");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error processing order {order.OrderId}: {ex.Message}");
+                        baggageQueue.Enqueue(order); // Возвращаем заказ в очередь для повторной обработки
+                    }
+                });
             }
-            await Task.Delay(1000); // Проверяем очередь каждую секунду
+
+            await Task.Delay(500); // Уменьшаем задержку для более быстрой реакции на новые заказы
         }
         catch (Exception ex)
         {
@@ -52,6 +69,7 @@ _ = Task.Run(async () =>
         }
     }
 });
+
 
 // Эндпоинт для выгрузки багажа
 app.MapPost("/baggage-discharge", async (HttpContext context) =>
@@ -126,7 +144,7 @@ async Task ProcessDischargeOrderAsync(BaggageOrder order)
     try
     {
         Console.WriteLine($"Processing DISCHARGE order {order.OrderId} for flight {order.FlightId}");
-        await TimeOut(30);
+        //await TimeOut(30);
 
         var state = new MovementState { CurrentPoint = 299 };
 
@@ -136,14 +154,14 @@ async Task ProcessDischargeOrderAsync(BaggageOrder order)
             return;
         }
 
-        var routeToPlane = await GetRouteToPlane(state.CurrentPoint, order.FlightId);
+        var routeToPlane = await GetRouteGarageToPlane(state.CurrentPoint, order.FlightId);
         if (routeToPlane == null)
         {
             Console.WriteLine($"Failed to get route to plane for order {order.OrderId}");
             return;
         }
 
-        if (!await MoveAlongRoute(routeToPlane, state, order.FlightId, "plane"))
+        if (!await MoveAlongRoute(routeToPlane, state, order.FlightId, "g_to_plane"))
         {
             Console.WriteLine($"Failed to move to plane for order {order.OrderId}");
             return;
@@ -155,23 +173,26 @@ async Task ProcessDischargeOrderAsync(BaggageOrder order)
         //    return;
         //}
         Console.WriteLine("Baggage out of the plane");
-        await TimeOut(50);
+        //await TimeOut(50);
+        await Task.Delay(1000);
 
-        var routeToLuggage = await GetRouteToLuggage(state.CurrentPoint);
+
+        var routeToLuggage = await GetRoutePlaneToLuggage(state.CurrentPoint);
         if (routeToLuggage == null)
         {
             Console.WriteLine($"Failed to get route to luggage terminal for order {order.OrderId}");
             return;
         }
 
-        if (!await MoveAlongRoute(routeToLuggage, state, order.FlightId, "luggage"))
+        if (!await MoveAlongRoute(routeToLuggage, state, order.FlightId, "p_to_luggage"))
         {
             Console.WriteLine($"Failed to move to luggage terminal for order {order.OrderId}");
             return;
         }
 
         Console.WriteLine("Baggage out of the car");
-        await TimeOut(50);
+        await Task.Delay(1000);
+        //await TimeOut(50);
 
         //if (!await ReportSuccessToUNO(order.OrderId, "discharge"))
         //{
@@ -212,7 +233,7 @@ async Task ProcessLoadOrderAsync(BaggageOrder order)
     try
     {
         Console.WriteLine($"Processing LOAD order {order.OrderId} for flight {order.FlightId}");
-        await TimeOut(30);
+        //await TimeOut(30);
 
         var state = new MovementState { CurrentPoint = 299 };
 
@@ -222,14 +243,14 @@ async Task ProcessLoadOrderAsync(BaggageOrder order)
             return;
         }
 
-        var routeToLuggage = await GetRouteGToLug(state.CurrentPoint);
+        var routeToLuggage = await GetRouteGarageToLuggage(state.CurrentPoint);
         if (routeToLuggage == null)
         {
             Console.WriteLine($"Failed to get route to luggage terminal for order {order.OrderId}");
             return;
         }
 
-        if (!await MoveAlongRoute(routeToLuggage, state, order.FlightId, "luggage"))
+        if (!await MoveAlongRoute(routeToLuggage, state, order.FlightId, "g_to_luggage"))
         {
             Console.WriteLine($"Failed to move to luggage terminal for order {order.OrderId}");
             return;
@@ -241,23 +262,25 @@ async Task ProcessLoadOrderAsync(BaggageOrder order)
         //    return;
         //}
         Console.WriteLine("Baggage loaded into the car");
-        await TimeOut(50);
+        //await TimeOut(50);
+        await Task.Delay(1000);
 
-        var routeToPlane = await GetRouteGarToPlane(state.CurrentPoint, order.FlightId);
+        var routeToPlane = await GetRouteLuggageToPlane(state.CurrentPoint, order.FlightId);
         if (routeToPlane == null)
         {
             Console.WriteLine($"Failed to get route to plane for order {order.OrderId}");
             return;
         }
 
-        if (!await MoveAlongRoute(routeToPlane, state, order.FlightId, "plane"))
+        if (!await MoveAlongRoute(routeToPlane, state, order.FlightId, "l_to_plane"))
         {
             Console.WriteLine($"Failed to move to plane for order {order.OrderId}");
             return;
         }
 
         Console.WriteLine("Baggage loaded into the plane");
-        await TimeOut(50);
+        //await TimeOut(50);
+        await Task.Delay(1000);
 
         //if (!await ReportSuccessToUNO(order.OrderId, "loading"))
         //{
@@ -319,8 +342,31 @@ async Task<bool> RequestGarageExit(string vehicleType)
 {
     try
     {
+        // Отправляем GET-запрос
         var response = await httpClient.GetAsync($"{groundControlUrl}/garage/{vehicleType}");
-        return response.IsSuccessStatusCode;
+
+        // Проверяем, что ответ успешный
+        if (!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine($"Failed to request garage exit for {vehicleType}. Status code: {response.StatusCode}");
+            return false;
+        }
+
+        // Читаем содержимое ответа как строку
+        var content = await response.Content.ReadAsStringAsync();
+        Console.WriteLine($"Response content: {content}");
+
+        // Десериализуем JSON в объект
+        try
+        {
+            var result = JsonSerializer.Deserialize<bool>(content);
+            return result;
+        }
+        catch (JsonException ex)
+        {
+            Console.WriteLine($"Failed to deserialize response: {ex.Message}");
+            return false;
+        }
     }
     catch (Exception ex)
     {
@@ -329,7 +375,7 @@ async Task<bool> RequestGarageExit(string vehicleType)
     }
 }
 
-async Task<List<int>> GetRouteToPlane(int currentPoint, int planeId)
+async Task<List<int>> GetRouteGarageToPlane(int currentPoint, int planeId)
 {
     try
     {
@@ -348,7 +394,7 @@ async Task<List<int>> GetRouteToPlane(int currentPoint, int planeId)
     }
 }
 
-async Task<List<int>> GetRouteToLuggage(int currentPoint)
+async Task<List<int>> GetRoutePlaneToLuggage(int currentPoint)
 {
     try
     {
@@ -386,7 +432,7 @@ async Task<List<int>> GetRouteToGarage(int currentPoint)
     }
 }
 
-async Task<List<int>> GetRouteGToLug(int currentPoint)
+async Task<List<int>> GetRouteGarageToLuggage(int currentPoint)
 {
     try
     {
@@ -405,7 +451,7 @@ async Task<List<int>> GetRouteGToLug(int currentPoint)
     }
 }
 
-async Task<List<int>> GetRouteGarToPlane(int currentPoint, int planeId)
+async Task<List<int>> GetRouteLuggageToPlane(int currentPoint, int planeId)
 {
     try
     {
@@ -428,85 +474,84 @@ async Task<bool> MoveAlongRoute(List<int> route, MovementState state, int flight
 {
     state.CurrentRoute = route; // Сохраняем текущий маршрут в состоянии
 
-    int lastPoint = state.CurrentPoint;
-    int newRouteAttempts = 0; // Счетчик запросов нового маршрута
-
-    while (true)
+    while (state.CurrentRoute.Count > 0)
     {
-        foreach (var targetPoint in state.CurrentRoute)
-        {
-            // Запрос разрешения на передвижение
-            if (!await RequestMovementWithRetry(state.CurrentPoint, targetPoint, state, flightId, routeType))
-            {
-                Console.WriteLine($"Failed to move from {state.CurrentPoint} to {targetPoint} after retries.");
-                return false; // Если не удалось получить разрешение даже после запроса нового маршрута
-            }
+        int targetPoint = state.CurrentRoute[0]; // Берем первую точку маршрута
 
+        // Запрос разрешения на передвижение
+        if (await RequestMovement(state.CurrentPoint, targetPoint))
+        {
             // Обновляем текущую точку
             state.CurrentPoint = targetPoint;
             Console.WriteLine($"Moved to point {state.CurrentPoint}");
 
+            // Удаляем пройденную точку из маршрута
+            state.CurrentRoute.RemoveAt(0);
+
             // Имитация времени движения
-            await TimeOut(40);
+            //await TimeOut(40);
+            await Task.Delay(500);
 
             // Сбрасываем счетчик при успешном перемещении
             state.AttemptsWithoutMovement = 0;
         }
-
-        // Если все точки маршрута пройдены, возвращаем true
-        if (state.CurrentPoint == state.CurrentRoute[state.CurrentRoute.Count - 1])
+        else
         {
-            return true;
-        }
-    }
-}
+            Console.WriteLine($"Failed to move from {state.CurrentPoint} to {targetPoint}.");
+            state.AttemptsWithoutMovement++;
 
-async Task<bool> RequestMovementWithRetry(int from, int to, MovementState state, int flightId, string routeType)
-{
-    for (int i = 0; i < 5; i++) // Пытаемся 5 раз
-    {
-        try
-        {
-            if (await RequestMovement(from, to))
+            // Если попыток больше 5, запрашиваем новый маршрут
+            if (state.AttemptsWithoutMovement >= 5)
             {
-                return true; // Если разрешение получено, возвращаем true
-            }
-            else
-            {
-                Console.WriteLine($"Failed to get permission to move from {from} to {to}. Attempt {i + 1}/5. Retrying...");
-                //await Task.Delay(200); // Ждем 1 секунду перед повторной попыткой
+                Console.WriteLine($"Car stuck in traffic. Rebuilding route.");
+                var newRoute = await GetNewRoute(state.CurrentPoint, flightId, routeType);
+                if (newRoute == null)
+                {
+                    Console.WriteLine($"Failed to get a new route. Aborting movement.");
+                    return false;
+                }
+
+                // Обновляем маршрут
+                state.CurrentRoute = newRoute;
+                state.AttemptsWithoutMovement = 0;
             }
 
+            // Задержка перед повторной попыткой
+            await Task.Delay(200);
         }
-        catch (Exception ex)
+
+        // Проверяем, достигли ли конечной точки маршрута
+        if (state.CurrentRoute.Count == 0 || state.CurrentPoint == state.CurrentRoute[state.CurrentRoute.Count - 1])
         {
-            Console.WriteLine($"Error in RequestMovementWithRetry: {ex.Message}");
-            await Task.Delay(1000); // Ждем 1 секунду в случае ошибки
+            return true; // Маршрут завершен
         }
     }
 
-    // Если после 5 попыток разрешение не получено, запрашиваем новый маршрут
-    Console.WriteLine($"Failed to get permission after 5 attempts. Requesting a new route...");
-
-    var newRoute = await GetNewRoute(state.CurrentPoint, flightId, routeType);
-    if (newRoute == null)
-    {
-        Console.WriteLine($"Failed to get a new route. Aborting movement.");
-        return false; // Если новый маршрут не получен, возвращаем false
-    }
-
-    // Обновляем маршрут и продолжаем движение
-    Console.WriteLine($"New route received. Continuing movement.");
-    state.CurrentRoute = newRoute; // Обновляем маршрут в состоянии
-    return await MoveAlongRoute(newRoute, state, flightId, routeType); // Продолжаем движение по новому маршруту
+    return true; // Маршрут завершен
 }
 
 async Task<bool> RequestMovement(int from, int to)
 {
     try
     {
+        // Отправляем GET-запрос
         var response = await httpClient.GetAsync($"{groundControlUrl}/point/{from}/{to}");
-        return response.IsSuccessStatusCode; // Возвращает true, если разрешение получено
+
+        // Проверяем, что ответ успешный
+        if (!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine($"Failed to get permission to move from {from} to {to}. Status code: {response.StatusCode}");
+            return false;
+        }
+
+        // Читаем содержимое ответа как строку
+        var content = await response.Content.ReadAsStringAsync();
+
+        // Десериализуем JSON в объект
+        var result = JsonSerializer.Deserialize<bool>(content);
+
+        // Возвращаем значение
+        return result;
     }
     catch (Exception ex)
     {
@@ -520,13 +565,21 @@ async Task<List<int>> GetNewRoute(int currentPoint, int flightId, string routeTy
     try
     {
         Console.WriteLine("Getting new route");
-        if (routeType == "plane")
+        if (routeType == "g_to_plane")
         {
-            return await GetRouteToPlane(currentPoint, flightId);
+            return await GetRouteGarageToPlane(currentPoint, flightId);
         }
-        else if (routeType == "luggage")
+        else if (routeType == "p_to_luggage")
         {
-            return await GetRouteToLuggage(currentPoint);
+            return await GetRoutePlaneToLuggage(currentPoint);
+        }
+        else if (routeType == "g_to_luggage")
+        {
+            return await GetRouteGarageToLuggage(currentPoint);
+        }
+        else if (routeType == "l_to_plane")
+        {
+            return await GetRouteLuggageToPlane(currentPoint, flightId);
         }
         else if (routeType == "garage")
         {
