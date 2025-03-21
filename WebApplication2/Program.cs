@@ -10,14 +10,26 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://26.132.135.106:5555");
 
-var app = builder.Build();
+// Добавляем сервисы Swagger
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
+var app = builder.Build();
 // Настройка статических файлов
 app.UseStaticFiles();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+
 
 // Перенаправление корневого URL на index.html
 app.MapGet("/", (HttpContext context) =>
@@ -29,7 +41,7 @@ app.MapGet("/", (HttpContext context) =>
 var httpClient = new HttpClient();
 
 // Реальные URL-адреса серверов
-const string groundControlUrl = "http://26.21.3.228:5555/dispatcher"; // Используем моки
+const string groundControlUrl = "http://26.34.23.177:5555/dispatcher"; // Используем моки
 const string boardServiceUrl = "http://26.125.155.211:5555"; // Используем моки
 const string unoServiceUrl = "http://26.53.143.176:5555"; // Используем моки
 const string table = "http://26.228.200.110:5555"; // Используем моки
@@ -113,7 +125,7 @@ app.MapPost("/baggage-discharge", async (HttpContext context) =>
         context.Response.StatusCode = 500;
         await context.Response.WriteAsync("Internal server error");
     }
-});
+}).WithName("BaggageDischarge"); // Указываем имя для Swagger
 
 // Эндпоинт для загрузки багажа
 app.MapPost("/baggage-loading", async (HttpContext context) =>
