@@ -1,0 +1,89 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Active Orders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 300px;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        #activeOrders {
+            text-align: left;
+        }
+
+        .order {
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Active Orders</h1>
+        <div id="activeOrders">No active orders</div>
+    </div>
+
+    <script>
+        // Функция для обновления списка активных заказов
+        async function updateActiveOrders() {
+            try {
+                const response = await fetch('/active-order');
+                if (response.ok) {
+                    const orders = await response.json();
+                    const activeOrdersElement = document.getElementById('activeOrders');
+
+                    if (orders.length > 0) {
+                        // Очищаем текущий список
+                        activeOrdersElement.innerHTML = '';
+
+                        // Добавляем каждый заказ в список
+                        orders.forEach(order => {
+                            const orderElement = document.createElement('div');
+                            orderElement.className = 'order';
+                            orderElement.innerHTML = `
+                                    <strong>Order ID:</strong> ${order.orderId}<br>
+                                    <strong>Flight ID:</strong> ${order.flightId}<br>
+                                    <strong>Type:</strong> ${order.type}
+                                `;
+                            activeOrdersElement.appendChild(orderElement);
+                        });
+                    } else {
+                        activeOrdersElement.textContent = 'No active orders';
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching active orders:', error);
+            }
+        }
+
+        // Обновляем данные каждые 2 секунды
+        setInterval(updateActiveOrders, 2000);
+
+        // Первоначальное обновление
+        updateActiveOrders();
+    </script>
+</body>
+</html>

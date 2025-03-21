@@ -16,6 +16,16 @@ builder.WebHost.UseUrls("http://26.132.135.106:5555");
 
 var app = builder.Build();
 
+// Настройка статических файлов
+app.UseStaticFiles();
+
+// Перенаправление корневого URL на index.html
+app.MapGet("/", (HttpContext context) =>
+{
+    context.Response.Redirect("/index.html");
+    return Task.CompletedTask;
+});
+
 var httpClient = new HttpClient();
 
 // Реальные URL-адреса серверов
@@ -139,6 +149,22 @@ app.MapPost("/baggage-loading", async (HttpContext context) =>
     }
 });
 
+// Эндпоинт для получения всех активных заказов
+app.MapGet("/active-order", (HttpContext context) =>
+{
+    try
+    {
+        // Получаем все активные заказы
+        var activeOrdersList = activeOrders.Values.ToList();
+        return Results.Json(activeOrdersList);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error in /active-order: {ex.Message}");
+        return Results.StatusCode(500);
+    }
+});
+
 async Task ProcessDischargeOrderAsync(BaggageOrder order)
 {
     try
@@ -167,11 +193,11 @@ async Task ProcessDischargeOrderAsync(BaggageOrder order)
             return;
         }
 
-        //if (!await NotifyBoardAboutBaggageOUT(order.FlightId, "out"))
-        //{
-        //    Console.WriteLine($"[DISCHARGE] Failed to notify board about baggage unloading for order");
-        //    return;
-        //}
+        if (!await NotifyBoardAboutBaggageOUT(order.FlightId, "out"))
+        {
+            Console.WriteLine($"[DISCHARGE] Failed to notify board about baggage unloading for order");
+            return;
+        }
         Console.WriteLine("Baggage out of the plane");
         await TimeOut(50);
 
@@ -254,11 +280,11 @@ async Task ProcessLoadOrderAsync(BaggageOrder order)
             return;
         }
 
-        //if (!await NotifyBoardAboutBaggage(order.FlightId))
-        //{
-        //    Console.WriteLine($"[LOAD] Failed to notify board about baggae loading for order ");
-        //    return;
-        //}
+        if (!await NotifyBoardAboutBaggage(order.FlightId))
+        {
+            Console.WriteLine($"[LOAD] Failed to notify board about baggae loading for order ");
+            return;
+        }
         Console.WriteLine("Baggage loaded into the car");
         await TimeOut(50);
 
